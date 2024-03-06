@@ -1,6 +1,6 @@
 
-use hyper::{ Client, Request, Body };
-use hyper::header::{ AUTHORIZATION, CONTENT_TYPE, CONTENT_LENGTH };
+// use hyper::{ Client, Request, Body };
+use reqwest::header::{ AUTHORIZATION, CONTENT_TYPE, CONTENT_LENGTH };
 
 use crate::discord::{
     Snowflake,
@@ -14,17 +14,18 @@ pub mod roles;
 
 const LIMIT: usize = 1000;
 
-async fn get_members_inner<'a, C>(
+async fn get_members_inner<'a>(
     server: Snowflake,
     after: Option<Snowflake>,
     // msg: Snowflake,
     // emoji: &str,
     base_url: &str,
     auth: &str,
-    client: &'a Client<C, Body>,
+    // client: &'a Client<C, Body>,
+    client: &'a reqwest::Client,
     ) -> Result<Vec<GuildMember>, Error>
-    where
-        C: hyper::client::connect::Connect + 'static + Clone + Send + Sync,
+    // where
+    //     C: hyper::client::connect::Connect + 'static + Clone + Send + Sync,
 {
     let Snowflake(server_id) = server;
     
@@ -36,13 +37,15 @@ async fn get_members_inner<'a, C>(
     }
     
     let body = send_retry_rate_limit(client, || {
-        Request::builder()
-            .method("GET")
-            .uri(&url)
+        // Request::builder()
+        client.get(&url)
+            // .method("GET")
+            // .uri(&url)
             .header(AUTHORIZATION, auth)
             .header(CONTENT_TYPE, "application/json")
             .header(CONTENT_LENGTH, "0")
-            .body(Body::empty())
+            // .body(Body::empty())
+            .build()
             .map_err(|err| err.into())
     }).await?;
     
@@ -53,16 +56,17 @@ async fn get_members_inner<'a, C>(
     Ok(users)
 }
 
-pub async fn get_members<'a, C>(
+pub async fn get_members<'a>(
     server: Snowflake,
     // msg: Snowflake,
     // emoji: &str,
     base_url: &str,
     auth: &str,
-    client: &'a Client<C, Body>,
+    // client: &'a Client<C, Body>,
+    client: &'a reqwest::Client,
     ) -> Result<Vec<GuildMember>, Error>
-    where
-        C: hyper::client::connect::Connect + 'static + Clone + Send + Sync,
+    // where
+    //     C: hyper::client::connect::Connect + 'static + Clone + Send + Sync,
 {
     let mut users = Vec::new();
     let mut last = None;

@@ -122,21 +122,22 @@ impl From<String> for NewMessage<'static> {
 
 // use futures::compat::Future01CompatExt;
 // use futures01::Stream;
-use tokio::time::delay_for;
-use hyper_tls;
-use hyper_tls::HttpsConnector;
+// use tokio::time::delay_for;
+// use hyper_tls;
+// use hyper_tls::HttpsConnector;
 use crate::discord::Snowflake;
-use hyper;
-use hyper::Body;
-use hyper::Request;
-use hyper::Client;
-use hyper::header::{AUTHORIZATION, CONTENT_TYPE};
-use hyper::http::StatusCode;
+// use hyper;
+// use hyper::Body;
+// use hyper::Request;
+// use hyper::client::Client;
+use reqwest::Client;
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
+use reqwest::StatusCode;
 use serde_json;
-use serde::Deserialize;
+// use serde::Deserialize;
 
-pub use hyper::Error as HyperError;
-pub use hyper::http::Error as HyperHttpError;
+// pub use hyper::Error as HyperError;
+// pub use hyper::http::Error as HyperHttpError;
 pub use std::string::FromUtf8Error;
 
 #[derive(Debug)]
@@ -146,8 +147,9 @@ pub enum Error {
         status_code: StatusCode,
         body: String,
     },
-    TransportError(hyper::Error),
-    HttpError(hyper::http::Error),
+    // TransportError(hyper::Error),
+    // HttpError(hyper::http::Error),
+    ReqwestError(reqwest::Error),
     DecodeError(std::string::FromUtf8Error),
     RateLimited {
         retry_after: u64,
@@ -155,14 +157,19 @@ pub enum Error {
     Other(String)
 }
 
-impl From<hyper::Error> for Error {
-    fn from(err: hyper::Error) -> Self {
-        Error::TransportError(err)
-    }
-}
-impl From<hyper::http::Error> for Error {
-    fn from(err: hyper::http::Error) -> Self {
-        Error::HttpError(err)
+// impl From<hyper::Error> for Error {
+//     fn from(err: hyper::Error) -> Self {
+//         Error::TransportError(err)
+//     }
+// }
+// impl From<hyper::http::Error> for Error {
+//     fn from(err: hyper::http::Error) -> Self {
+//         Error::HttpError(err)
+//     }
+// }
+impl From<reqwest::Error> for Error {
+    fn from(err: reqwest::Error) -> Self {
+        Error::ReqwestError(err)
     }
 }
 impl From<std::string::FromUtf8Error> for Error {
@@ -177,21 +184,35 @@ impl From<std::string::FromUtf8Error> for Error {
 //     }
 // }
 
-pub type Https = HttpsConnector<hyper::client::HttpConnector>;
+// pub type Https = HttpsConnector<hyper::client::HttpConnector>;
 // pub type Https = hyper_rustls::HttpsConnector<hyper::client::HttpConnector>;
-pub type TheClient = Client<Https, Body>;
+// pub type Https = hyper_rustls::HttpsConnector<hyper::client::HttpConnector>;
+// pub type TheClient = Client<Https, Body>;
+pub type TheClient = Client;
 
-pub fn get_https() -> Result<Https, Error> {
-    Ok(HttpsConnector::new())
-        // .map_err(|err| err.into())
-    // Ok(hyper_rustls::HttpsConnector::new())
-}
+// pub fn get_https() -> Result<Https, Error> {
+//     // Ok(HttpsConnector::new())
+//         // .map_err(|err| err.into())
+//     // Ok(hyper_rustls::HttpsConnector::new())
+    
+//     let https = hyper_rustls::HttpsConnectorBuilder::new()
+//         // .with_native_roots()
+//         .with_webpkiroots()
+//         .https_only()
+//         .enable_http1()
+//         .build();
+//     // let https = hyper_rustls::HttpsConnector::new();
+//     Ok(https)
+// }
 
 pub fn get_client() -> Result<TheClient, Error> {
-    let https = get_https()?;
+    // let https = get_https()?;
     
-    let client = Client::builder()
-        .build(https);
+    // let client = Client::builder()
+    //     .build(https);
+    let client = reqwest::ClientBuilder::new()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()?;
     
     Ok(client)
 }
@@ -202,25 +223,30 @@ pub struct DiscordRateLimitResponse {
     global: bool,
 }
 
-pub(crate) async fn send_retry_rate_limit<'a, C, ReqF>(client: &'a Client<C, Body>, req_builder: ReqF) -> Result<String, Error> 
+pub(crate) async fn send_retry_rate_limit<'a, ReqF>(client: &'a TheClient, req_builder: ReqF) -> Result<String, Error>
     where
-        C: hyper::client::connect::Connect + 'static + Clone + Send + Sync,
-        ReqF: Fn() -> Result<Request<Body>, Error> + 'a,
+        // C: hyper::client::connect::Connect + 'static + Clone + Send + Sync,
+        ReqF: Fn() -> Result<reqwest::Request, Error> + 'a,
 {
     loop {
         let req = req_builder()?;
         
-        let res = client.request(req).await?;
+        let res: reqwest::Response = client.execute(req).await?;
         
-        let (parts, body) = res.into_parts();
+        // let (parts, body) = res.into_parts();
         
-        let body = {
-            let b: Vec<u8> = hyper::body::to_bytes(body).await?.to_vec();
+        // let body = {
+        //     // let b: Vec<u8> = hyper::body::to_bytes(body).await?.to_vec();
+        //     let b: Vec<u8> = res.bytes().await?.to_vec();
             
-            String::from_utf8(b)?
-        };
+        //     String::from_utf8(b)?
+        // };
+        let status = res.status();
         
-        if parts.status == StatusCode::TOO_MANY_REQUESTS {
+        let b = res.bytes().await?.to_vec();
+        let body = String::from_utf8(b)?;
+        
+        if status == StatusCode::TOO_MANY_REQUESTS {
             let res: DiscordRateLimitResponse = serde_json::from_str(&body)
                 .map_err(|err| Error::Other(format!("Malformed rate limit message {}", err)))?;
             
@@ -229,17 +255,21 @@ pub(crate) async fn send_retry_rate_limit<'a, C, ReqF>(client: &'a Client<C, Bod
             }
             
             // delay_for(::std::time::Duration::from_millis(res.retry_after)).await;
-            delay_for(::std::time::Duration::from_secs_f64(res.retry_after)).await;
+            // delay_for(::std::time::Duration::from_secs_f64(res.retry_after)).await;
+            tokio::time::sleep(::std::time::Duration::from_secs_f64(res.retry_after)).await;
             continue
         }
         
-        if !parts.status.is_success() {
+        if !status.is_success() {
             return Err(Error::DiscordError {
-                msg: format!("Status Code {:?}", parts.status),
-                status_code: parts.status,
-                body: body,
+                msg: format!("Status Code {:?}", status),
+                status_code: status,
+                // body: body,
+                body: "".into(),
             });
         }
+        
+        
         
         break Ok(body)
     }
@@ -295,33 +325,36 @@ fn split_msg(msg: &str) -> Vec<Cow<str>> {
     }
 }
 
-async fn send_inner<'a, C>(msg: &'a NewMessage<'a>, auth: &str, url: &str, client: &'a Client<C, Body>) -> Result<(), Error>
-        where
-            C: hyper::client::connect::Connect + 'static + Clone + Send + Sync,
+async fn send_inner<'a>(msg: &'a NewMessage<'a>, auth: &str, url: &str, client: &'a TheClient) -> Result<(), Error>
+        // where
+        //     C: hyper::client::connect::Connect + 'static + Clone + Send + Sync,
     {
     
     let _body = send_retry_rate_limit(client, || {
-        let body: Body = serde_json::to_string(&msg)
+        let body: String = serde_json::to_string(&msg)
             .map_err(|err| Error::Other(format!("Could not serialize message {}", err)))?
-            .into();
+            // .into();
+            ;
         
-        Request::builder()
-            .method("POST")
-            .uri(url)
+        // Request::builder()
+        client.post(url)
+            // .method("POST")
+            // .uri(url)
             
             .header(AUTHORIZATION, auth)
             .header(CONTENT_TYPE, "application/json")
             // .body(Body::empty())
             .body(body)
+            .build()
             .map_err(|err| err.into())
     }).await?;
     
     Ok(())
 }
 
-pub async fn send<'a, C>(to: Snowflake, msg: &'a NewMessage<'a>, base_url: &'a str, token: &'a str, client: &'a Client<C, Body>) -> Result<(), Error>
-    where
-        C: hyper::client::connect::Connect + 'static + Clone + Send + Sync,
+pub async fn send<'a>(to: Snowflake, msg: &'a NewMessage<'a>, base_url: &'a str, token: &'a str, client: &'a TheClient) -> Result<(), Error>
+    // where
+    //     C: hyper::client::connect::Connect + 'static + Clone + Send + Sync,
 {
     // https://discordapp.com/api/v6/gateway/bot
     

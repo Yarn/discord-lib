@@ -70,12 +70,14 @@ pub struct User {
     pub discriminator: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct Role {
     pub id: Snowflake,
     name: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct GuildMember {
     pub user: Option<User>,

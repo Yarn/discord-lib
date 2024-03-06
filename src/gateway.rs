@@ -3,7 +3,7 @@
 // use futures;
 // use futures01;
 
-use hyper;
+// use hyper;
 // use tokio;
 // use tokio_tungstenite;
 // use failure;
@@ -11,11 +11,12 @@ use hyper;
 
 // use failure::Error;
 // use futures::sync::oneshot;
-pub use bytes::Bytes;
+// pub use bytes::Bytes;
 
-use hyper::{Body, Request};
+// use hyper::{Body, Request};
 // use hyper::{Body, Client, Request, Response, Server, StatusCode};
-use hyper::header::AUTHORIZATION;
+// use hyper::header::AUTHORIZATION;
+use reqwest::header::AUTHORIZATION;
 // use hyper::header::{UPGRADE, CONNECTION, HeaderValue};
 // use hyper::rt::{self, Future};
 // use futures01::Future as Future01;
@@ -61,8 +62,10 @@ pub enum GatewayError {
     WebSocket(WebSocketError),
     #[fail(display = "Malformed Payload Error")]
     MalformedPayload,
-    #[fail(display = "Hyper Error {}", 0)]
-    HyperError(hyper::Error),
+    // #[fail(display = "Hyper Error {}", 0)]
+    // HyperError(hyper::Error),
+    #[fail(display = "Request Error {}", 0)]
+    ReqwestError(reqwest::Error),
     #[fail(display = "Invalid Session")]
     InvalidSession,
 }
@@ -82,9 +85,14 @@ impl From<ParsePayloadError> for GatewayError {
     }
 }
 
-impl From<hyper::Error> for GatewayError {
-    fn from(err: hyper::Error) -> Self {
-        GatewayError::HyperError(err)
+// impl From<hyper::Error> for GatewayError {
+//     fn from(err: hyper::Error) -> Self {
+//         GatewayError::HyperError(err)
+//     }
+// }
+impl From<reqwest::Error> for GatewayError {
+    fn from(err: reqwest::Error) -> Self {
+        GatewayError::ReqwestError(err)
     }
 }
 
@@ -98,16 +106,18 @@ async fn get_gateway<'a>(token: &'a str, base_url: &'a str, client: &'a TheClien
     // let addr: ::std::net::SocketAddr = "https://discordapp.com/api/v6/gateway/bot".parse().unwrap();
     //https://discordapp.com/api
     
-    let req = Request::builder()
+    // let req = Request::builder()
+    let req = client.get(url)
         // .uri(format!("http://{}/ws", addr))
-        .uri(url)
+        // .uri(url)
         .header(AUTHORIZATION, auth)
         // .header(UPGRADE, "websocket")
         // .header(CONNECTION, "Upgrade")
         // .header("Origin", "127.0.0.1:8080")
         // .header("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
         // .header("Sec-WebSocket-Version", "13")
-        .body(Body::empty())
+        // .body(Body::empty())
+        .build()
         // .body(Body::from(""))
         .unwrap();
     
@@ -129,13 +139,17 @@ async fn get_gateway<'a>(token: &'a str, base_url: &'a str, client: &'a TheClien
     // println!("{:?}", res);
     
     // let client = hyper::Client::new();
-    let res: hyper::Response<hyper::Body> = client.request(req).await?;
+    // let res: hyper::Response<hyper::Body> = client.request(req).await?;
+    // let res: reqwest::Response = client.request(req).await?;
+    let res: reqwest::Response = client.execute(req).await?;
     
     // let a = res.body().collect();
     // let a = hyper::body::aggregate(res).await?;
-    let a = hyper::body::to_bytes(res).await?;
-    use hyper::body::Buf;
-    let b: &[u8] = a.bytes();
+    // let a = hyper::body::to_bytes(res).await?;
+    // use hyper::body::Buf;
+    // let b: &[u8] = a.bytes();
+    let a = res.bytes().await?;
+    let b: &[u8] = a.as_ref();
     
     // let info: GatewayInfo = serde_json::from_slice(&res.into_bytes())
     let info: GatewayInfo = serde_json::from_slice(b)
@@ -169,6 +183,7 @@ pub enum Event {
     Unknown(String, Value),
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct Hello {
     pub heartbeat_interval: u64,
@@ -199,11 +214,13 @@ use crate::discord::{
     Snowflake,
 };
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct IdUser {
     id: Snowflake,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct PresenceUpdate {
     user: IdUser,
@@ -235,12 +252,14 @@ struct Payload {
     event: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct Emoji {
     id: Option<Snowflake>,
     pub name: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct MessageReactionAdd {
     pub user_id: Snowflake,
@@ -251,6 +270,7 @@ pub struct MessageReactionAdd {
     pub emoji: Emoji,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct MessageReactionRemove {
     pub user_id: Snowflake,
@@ -274,11 +294,13 @@ pub struct Ready {
     pub guilds: Vec<UnavailableGuild>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct VoiceStateUpdate {
     session_id: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct VoiceServerUpdate {
     endpoint: String,
@@ -477,7 +499,7 @@ impl Gateway {
             
             let gateway_info = get_gateway(&token, &base_url, &client).await?;
             
-            // println!("gateway: {:?}", gateway_info);
+            // dbg!("gateway: {:?}", gateway_info);
             
             let url: &str = gateway_info.get_url();
             let mut url = String::from(url);
@@ -583,14 +605,15 @@ impl Gateway {
 async fn send_heartbeat(interval_ms: u64, mut sender: SenderM) {
     // use futures01::IntoFuture;
     use futures::SinkExt;
-    use tokio::time::delay_for;
+    // use tokio::time::delay_for;
     
     loop {
         let sec: u64 = interval_ms / 1000;
         let ms: u32 = (interval_ms % 1000) as u32;
         
         // tokio_timer::sleep(::std::time::Duration::new(sec, ms)).into_future().compat().await.unwrap();
-        delay_for(::std::time::Duration::new(sec, ms)).await;
+        // delay_for(::std::time::Duration::new(sec, ms)).await;
+        ::tokio::time::sleep(::std::time::Duration::new(sec, ms)).await;
         // println!("heartbeat");
         if let Err(err) = sender.send("{\"op\": 1, \"d\": null}".into()).await {
             eprintln!("heartbeat, send channel closed: {}", err);

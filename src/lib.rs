@@ -30,8 +30,8 @@ pub use discord_api::channel::Channel;
 
 pub use self::gateway_ws::jank_run;
 
-pub use futures;
-pub use tokio;
-pub use hyper;
-pub use serde_json;
-pub use bytes;
+// pub use futures;
+// pub use tokio;
+// pub use hyper;
+// pub use serde_json;
+// pub use bytes;

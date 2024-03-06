@@ -1,8 +1,10 @@
 
 // use bytes::Bytes;
 
-use hyper::{Body, Request, StatusCode};
-use hyper::header::{UPGRADE, CONNECTION};
+use reqwest::StatusCode;
+// use hyper::{Body, Request, StatusCode};
+// use hyper::header::{UPGRADE, CONNECTION};
+use reqwest::header::{UPGRADE, CONNECTION};
 
 use futures::Future;
 
@@ -43,7 +45,8 @@ impl WebSocketError {
     }
 }
 
-type WSStream = WebSocketStream<hyper::upgrade::Upgraded>;
+// type WSStream = WebSocketStream<hyper::upgrade::Upgraded>;
+type WSStream = WebSocketStream<reqwest::Upgraded>;
 // type TGItem = Result<tungstenite::Message, tungstenite::Error>;
 // type TGNext = Option<TGItem>;
 type WSItem = Result<Message, WebSocketError>;
@@ -213,45 +216,54 @@ async fn open_websocket<'a>(url: &'a str, client: &'a TheClient) -> Result<WSStr
     // let url = "https://echo.websocket.org";
     // let url = "https://hyper.rs";
     // let url = "https://discordapp.com";
+    // let url = "https://gateway.discord.gg/?v=9&encoding=json";
     
-    use hyper::Version;
+    // use hyper::Version;
     
-    let req = Request::builder()
-        .uri(url)
+    // let req = Request::builder()
+    let req = client.get(url)
+        // .uri(url)
         
-        .version(Version::HTTP_11)
+        .version(reqwest::Version::HTTP_11)
         
+        // .header("Host", "gateway.discord.gg")
         .header(UPGRADE, "websocket")
         .header(CONNECTION, "Upgrade")
         .header("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
         .header("Sec-WebSocket-Version", "13")
         
-        .body(Body::empty())
+        // .body(Body::empty())
+        .build()
         .map_err(|err| WebSocketError::jank(format!("request builder error: {}", err)))?;
     
-    // println!("{:?}", req);
+    // dbg!(&req);
     // let client = crate::send_message::get_client().unwrap();
     
     let fut = client
-        .request(req)
+        .execute(req)
         .map_err(|e| { WebSocketError::jank(format!(".request error: {}", e)) });
     
-    let res = fut.await?;
+    let res: reqwest::Response = fut.await?;
+    // dbg!(&res);
     
     if res.status() != StatusCode::SWITCHING_PROTOCOLS {
         let status = res.status();
         
         // let mut body = hyper::body::aggregate(res)
-        let mut body = hyper::body::to_bytes(res)
-            .map_err(|e| WebSocketError::jank(format!("body error: {}", e)))
-            .await?;
-        use hyper::body::Buf;
+        // let mut body = hyper::body::to_bytes(res)
+        //     .map_err(|e| WebSocketError::jank(format!("body error: {}", e)))
+        //     .await?;
+        // use hyper::body::Buf;
         // let b: &[u8] = a.bytes();
+        let body: Vec<u8> = res.bytes()
+            .map_err(|e| WebSocketError::jank(format!("body error: {}", e)))
+            .await?.to_vec();
         
         let err = WebSocketError::NoUpgrade {
             status: status,
             // body: a.to_bytes(),
-            body: body.to_bytes().to_vec(),
+            // body: body.to_bytes().to_vec(),
+            body: body,
         };
         
         return Err(err);
@@ -260,8 +272,9 @@ async fn open_websocket<'a>(url: &'a str, client: &'a TheClient) -> Result<WSStr
     }
     
     let upgraded = res
-        .into_body()
-        .on_upgrade()
+        // .into_body()
+        // .on_upgrade()
+        .upgrade()
         .map_err(|e| { WebSocketError::jank(format!("on upgrade error: {}", e)) })
         .await?;
     

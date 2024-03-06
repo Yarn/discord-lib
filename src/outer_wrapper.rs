@@ -110,8 +110,7 @@ impl Discord {
         let gateway: Gateway = GatewayBuilder::new()
             .base_url(base_url.clone())
             .resume(session_id.clone(), seq)
-            .connect(token.clone(), &http_client).await.unwrap();
-        
+            .connect(token.clone(), &http_client).await?;
         // gateway.seq_num = Some(seq);
         
         Ok(Self {
