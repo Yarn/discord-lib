@@ -24,6 +24,15 @@ pub enum ChannelType {
     GuildCatagory = 4,
     GuildNews = 5,
     GuildStore = 6,
+    AnnouncementThread = 10,
+    PublicThread = 11,
+    PrivateThread = 12,
+    GuildStageVoice = 13,
+    GuildDirectory = 14,
+    GuildForum = 15,
+    GuildMedia = 16,
+    #[serde(other)]
+    Unknown = 255,
 }
 
 #[allow(dead_code)]
