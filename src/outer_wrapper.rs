@@ -4,7 +4,7 @@ use futures::Future;
 pub use crate::send_message::TheClient;
 pub use crate::send_message;
 pub use crate::gateway::{Gateway, GatewayBuilder, GatewayMessage, GatewayError};
-pub use crate::discord::{Snowflake, Message, User, GuildMember};
+pub use crate::discord::{Snowflake, GuildMember};
 pub use crate::send_message::NewMessage;
 use crate::set_reaction;
 use crate::discord_api::channel::get_channel;

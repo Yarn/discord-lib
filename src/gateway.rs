@@ -1,36 +1,10 @@
 
-
-// use futures;
-// use futures01;
-
-// use hyper;
-// use tokio;
-// use tokio_tungstenite;
-// use failure;
-// use bytes;
-
-// use failure::Error;
-// use futures::sync::oneshot;
-// pub use bytes::Bytes;
-
-// use hyper::{Body, Request};
-// use hyper::{Body, Client, Request, Response, Server, StatusCode};
-// use hyper::header::AUTHORIZATION;
 use reqwest::header::AUTHORIZATION;
-// use hyper::header::{UPGRADE, CONNECTION, HeaderValue};
-// use hyper::rt::{self, Future};
-// use futures01::Future as Future01;
 
 use futures::Future;
-// use futures01::{Stream};
-
-// use futures::compat::Future01CompatExt;
-
-// use hyper_tls::HttpsConnector;
 
 use serde_json;
 
-// use ::gateway_ws;
 use crate::gateway_ws;
 pub use crate::send_message::TheClient;
 
@@ -62,8 +36,6 @@ pub enum GatewayError {
     WebSocket(WebSocketError),
     #[fail(display = "Malformed Payload Error")]
     MalformedPayload,
-    // #[fail(display = "Hyper Error {}", 0)]
-    // HyperError(hyper::Error),
     #[fail(display = "Request Error {}", 0)]
     ReqwestError(reqwest::Error),
     #[fail(display = "Invalid Session")]
@@ -85,11 +57,6 @@ impl From<ParsePayloadError> for GatewayError {
     }
 }
 
-// impl From<hyper::Error> for GatewayError {
-//     fn from(err: hyper::Error) -> Self {
-//         GatewayError::HyperError(err)
-//     }
-// }
 impl From<reqwest::Error> for GatewayError {
     fn from(err: reqwest::Error) -> Self {
         GatewayError::ReqwestError(err)
@@ -106,52 +73,16 @@ async fn get_gateway<'a>(token: &'a str, base_url: &'a str, client: &'a TheClien
     // let addr: ::std::net::SocketAddr = "https://discordapp.com/api/v6/gateway/bot".parse().unwrap();
     //https://discordapp.com/api
     
-    // let req = Request::builder()
     let req = client.get(url)
-        // .uri(format!("http://{}/ws", addr))
-        // .uri(url)
         .header(AUTHORIZATION, auth)
-        // .header(UPGRADE, "websocket")
-        // .header(CONNECTION, "Upgrade")
-        // .header("Origin", "127.0.0.1:8080")
-        // .header("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
-        // .header("Sec-WebSocket-Version", "13")
-        // .body(Body::empty())
         .build()
-        // .body(Body::from(""))
         .unwrap();
     
-    // let https = HttpsConnector::new(1).unwrap();
-    
-    // let client = Client::builder()
-    //     .build(https);
-    
-    // let fut = client
-    //     .request(req)
-    //     .map_err(|e| { eprintln!(".request error: {}", e); GatewayError::Misc(".request".into()) })
-    //     .and_then(|res| {
-    //         let err_fut = res.into_body().concat2()
-    //             .map_err(|e| { eprintln!(".into_body(),concat2() error: {}", e); GatewayError::Misc("concat".into()) });
-    //         err_fut
-    //     });
-    
-    // let res: hyper::Chunk = fut.compat().await?;
-    // println!("{:?}", res);
-    
-    // let client = hyper::Client::new();
-    // let res: hyper::Response<hyper::Body> = client.request(req).await?;
-    // let res: reqwest::Response = client.request(req).await?;
     let res: reqwest::Response = client.execute(req).await?;
     
-    // let a = res.body().collect();
-    // let a = hyper::body::aggregate(res).await?;
-    // let a = hyper::body::to_bytes(res).await?;
-    // use hyper::body::Buf;
-    // let b: &[u8] = a.bytes();
     let a = res.bytes().await?;
     let b: &[u8] = a.as_ref();
     
-    // let info: GatewayInfo = serde_json::from_slice(&res.into_bytes())
     let info: GatewayInfo = serde_json::from_slice(b)
         .map_err(|err| {
             eprintln!("deserialize error (get_gateway): {}", err); GatewayError::Misc("deserialize".into());
@@ -164,8 +95,6 @@ async fn get_gateway<'a>(token: &'a str, base_url: &'a str, client: &'a TheClien
 }
 
 use self::gateway_ws::{WebSocket, WebSocketBuilder, Message};
-// use self::gateway_ws::{TaskSpawner, DefaultTaskSpawner};
-// use self::gateway_ws::send_heartbeat;
 use self::gateway_ws::SenderM;
 use serde_json::value::Value;
 use serde_json::from_value;

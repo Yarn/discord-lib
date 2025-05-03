@@ -5,11 +5,6 @@ fn own_cow(cow: Cow<'_, str>) -> Cow<'static, str> {
     Cow::Owned(cow.into_owned())
 }
 
-#[derive(Debug, Serialize)]
-struct NewMessageBorrowed<'a> {
-    content: &'a str,
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct Embed<'a> {
     title: Option<Cow<'a, str>>,
