@@ -156,6 +156,10 @@ impl Discord {
     pub fn seq(&self) -> Option<u64> {
         self.gateway.seq_num
     }
+    
+    pub fn did_resume(&self) -> Option<bool> {
+        self.gateway.did_resume
+    }
 }
 
 #[derive(Debug, Clone)]

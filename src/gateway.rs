@@ -321,6 +321,7 @@ pub struct Gateway {
     token: String,
     resume: Option<ResumeInfo>,
     pub(crate) seq_num: Option<u64>,
+    pub(crate) did_resume: Option<bool>,
     // pub spawner: S,
 }
 
@@ -518,6 +519,7 @@ impl Gateway {
                 token: token,
                 resume: resume,
                 seq_num: None,
+                did_resume: None,
                 // spawner: spawner,
             };
             
@@ -565,8 +567,7 @@ impl Gateway {
                         
                         match self.resume {
                             Some(ref resume_info) => {
-                                eprintln!("resuming");
-                                
+                                self.did_resume = Some(true);
                                 let resume = Resume::new(&self.token, &resume_info.session_id, resume_info.seq);
                                 
                                 let msg: String = serde_json::to_string(&resume).unwrap();
@@ -577,7 +578,7 @@ impl Gateway {
                                 // panic!()
                             }
                             None => {
-                                eprintln!("no resume");
+                                self.did_resume = Some(false);
                                 let intents: usize = 
                                     (1 << 0 ) + // GUILDS
                                     (1 << 9 ) + // GUILD_MESSAGES
