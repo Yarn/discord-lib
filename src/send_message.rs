@@ -39,7 +39,7 @@ struct AllowedMentions {
 #[derive(Debug, Clone, Serialize)]
 pub struct NewMessage<'a> {
     content: Option<Cow<'a, str>>,
-    embed: Option<Embed<'a>>,
+    embeds: Option<Vec<Embed<'a>>>,
     allowed_mentions: Option<AllowedMentions>,
 }
 
@@ -47,7 +47,7 @@ impl<'a> NewMessage<'a> {
     fn new(msg: String) -> Self {
         NewMessage {
             content: Some(msg.into()),
-            embed: None,
+            embeds: None,
             allowed_mentions: None,
         }
     }
@@ -71,12 +71,12 @@ impl<'a> NewMessage<'a> {
         
         NewMessage {
             content: None,
-            embed: Some(Embed {
+            embeds: Some(vec![Embed {
                 title: title.map(|x| x.into()),
                 // title: None,
                 // description: Some(msg.into()),
                 description: Some(temp),
-            }),
+            }]),
             allowed_mentions: None,
         }
     }
@@ -84,10 +84,10 @@ impl<'a> NewMessage<'a> {
     pub fn embed_temp(msg: String) -> Self {
         NewMessage {
             content: None,
-            embed: Some(Embed {
+            embeds: Some(vec![Embed {
                 title: None,
                 description: Some(msg.into()),
-            }),
+            }]),
             allowed_mentions: None,
         }
     }
@@ -97,7 +97,8 @@ impl<'a> NewMessage<'a> {
         // let content = self.content.map(own_cow);
         NewMessage {
             content: self.content.map(own_cow),
-            embed: self.embed.map(|embed| embed.into_owned()),
+            // embeds: self.embeds.map(|embed| embed.to_owned()),
+            embeds: self.embeds.map(|embed| embed.into_iter().map(|x| x.into_owned()).collect()),
             allowed_mentions: self.allowed_mentions,
         }
     }
@@ -362,7 +363,7 @@ pub async fn send<'a>(to: Snowflake, msg: &'a NewMessage<'a>, base_url: &'a str,
     // let mut msgs = Vec::new();
     
     let full_msg = msg;
-    match (&msg.content, &msg.embed) {
+    match (&msg.content, &msg.embeds) {
         (Some(content), None) => {
             for msg in split_msg(content) {
                 // let ref msg = NewMessageBorrowed {
@@ -371,7 +372,7 @@ pub async fn send<'a>(to: Snowflake, msg: &'a NewMessage<'a>, base_url: &'a str,
                 
                 let msg = NewMessage {
                     content: msg.into(),
-                    embed: None,
+                    embeds: None,
                     allowed_mentions: full_msg.allowed_mentions.clone(),
                 };
                 
