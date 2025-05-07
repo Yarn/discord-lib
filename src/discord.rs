@@ -14,7 +14,14 @@ pub(crate) fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Er
     Deserialize::deserialize(de).map(Some)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+fn de_num_str<'de, D>(deserializer: D) -> Result<u64, D::Error>
+    where D: Deserializer<'de>
+{
+    let s = String::deserialize(deserializer)?;
+    u64::from_str_radix(&s, 10).map_err(de::Error::custom)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Snowflake(pub u64);
 
 impl std::ops::Deref for Snowflake {
@@ -75,6 +82,9 @@ pub struct User {
 pub struct Role {
     pub id: Snowflake,
     name: String,
+    #[serde(deserialize_with = "de_num_str")]
+    pub permissions: u64,
+    pub position: usize,
 }
 
 #[allow(dead_code)]
@@ -87,6 +97,7 @@ pub struct GuildMember {
     premium_since: Option<No>,
     deaf: bool,
     mute: bool,
+    permissions: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -117,4 +128,83 @@ pub struct Message {
     message_type: u64,
     activity: Option<No>,
     application: Option<No>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct Guild {
+    pub id: Snowflake,
+    name: String,
+    pub owner_id: Snowflake,
+    pub roles: Vec<Role>,
+    // only present for GUILD_CREATE
+    #[serde(default)]
+    pub channels: Vec<Channel>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub enum OverwriteType {
+    Role,
+    Member,
+    Unknown,
+}
+
+fn _de_overwrite_type<'de, D>(deserializer: D) -> Result<OverwriteType, D::Error>
+    where D: Deserializer<'de>
+{
+    let x = usize::deserialize(deserializer)?;
+    match x {
+        0 => Ok(OverwriteType::Role),
+        1 => Ok(OverwriteType::Member),
+        _ => Ok(OverwriteType::Unknown),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct Overwrite {
+    pub id: Snowflake,
+    #[serde(rename = "type", deserialize_with = "_de_overwrite_type")]
+    pub overwrite_type: OverwriteType,
+    #[serde(deserialize_with = "de_num_str")]
+    pub allow: u64,
+    #[serde(deserialize_with = "de_num_str")]
+    pub deny: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct Channel {
+    pub id: Snowflake,
+    pub guild_id: Option<Snowflake>,
+    pub permission_overwrites: Option<Vec<Overwrite>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct UnavailableGuild {
+    pub id: Snowflake,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct DeletedMessage {
+    pub id: Snowflake,
+    pub channel_id: Snowflake,
+    pub guild_id: Option<Snowflake>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct CreatedRole {
+    pub guild_id: Snowflake,
+    pub role: Role,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct DeletedRole {
+    pub guild_id: Snowflake,
+    pub role_id: Snowflake,
 }

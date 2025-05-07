@@ -103,9 +103,21 @@ use crate::discord;
 #[derive(Debug)]
 pub enum Event {
     MessageCreate(discord::Message),
+    MessageUpdate(discord::Message),
+    MessageDelete(discord::DeletedMessage),
     MessageReactionAdd(MessageReactionAdd),
     MessageReactionRemove(MessageReactionRemove),
+    GuildCreate(discord::Guild),
+    GuildUpdate(discord::Guild),
+    GuildDelete(discord::UnavailableGuild),
+    GuildRoleCreate(discord::CreatedRole),
+    GuildRoleUpdate(discord::CreatedRole),
+    GuildRoleDelete(discord::DeletedRole),
+    ChannelCreate(discord::Channel),
+    ChannelUpdate(discord::Channel),
+    ChannelDelete(discord::Channel),
     Ready(Ready),
+    Resumed,
     VoiceStateUpdate(VoiceStateUpdate),
     VoiceServerUpate(VoiceServerUpdate),
     PresenceUpdate(PresenceUpdate),
@@ -273,12 +285,101 @@ fn parse_payload_inner(payload: Payload) -> Result<Option<GatewayMessage>, Parse
                     })?;
                     GatewayMessage::Event(Event::MessageCreate(message))
                 }
+                Some("MESSAGE_UPDATE") => {
+                    let message: discord::Message = from_value(payload.data).map_err(|err| {
+                        eprintln!("parsing event failed for op 0 MESSAGE_UPDATE: {:?}", err);
+                        ParsePayloadError::Malformed
+                    })?;
+                    GatewayMessage::Event(Event::MessageUpdate(message))
+                }
+                Some("MESSAGE_DELETE") => {
+                    let message: discord::DeletedMessage = from_value(payload.data).map_err(|err| {
+                        eprintln!("parsing event failed for op 0 MESSAGE_UPDATE: {:?}", err);
+                        ParsePayloadError::Malformed
+                    })?;
+                    GatewayMessage::Event(Event::MessageDelete(message))
+                }
+                Some("GUILD_CREATE") => {
+                    let guild: discord::Guild = from_value(payload.data).map_err(|err| {
+                        eprintln!("parsing event failed for op 0 GUILD_CREATE: {:?}", err);
+                        ParsePayloadError::Malformed
+                    })?;
+                    
+                    GatewayMessage::Event(Event::GuildCreate(guild))
+                }
+                Some("GUILD_UPDATE") => {
+                    let guild: discord::Guild = from_value(payload.data).map_err(|err| {
+                        eprintln!("parsing event failed for op 0 GUILD_UPDATE: {:?}", err);
+                        ParsePayloadError::Malformed
+                    })?;
+                    
+                    GatewayMessage::Event(Event::GuildUpdate(guild))
+                }
+                Some("GUILD_DELETE") => {
+                    let guild: discord::UnavailableGuild = from_value(payload.data).map_err(|err| {
+                        eprintln!("parsing event failed for op 0 GUILD_DELETE: {:?}", err);
+                        ParsePayloadError::Malformed
+                    })?;
+                    
+                    GatewayMessage::Event(Event::GuildDelete(guild))
+                }
+                Some("GUILD_ROLE_CREATE") => {
+                    let data: discord::CreatedRole = from_value(payload.data).map_err(|err| {
+                        eprintln!("parsing event failed for op 0 GUILD_ROLE_CREATE: {:?}", err);
+                        ParsePayloadError::Malformed
+                    })?;
+                    
+                    GatewayMessage::Event(Event::GuildRoleCreate(data))
+                }
+                Some("GUILD_ROLE_UPDATE") => {
+                    let data: discord::CreatedRole = from_value(payload.data).map_err(|err| {
+                        eprintln!("parsing event failed for op 0 GUILD_ROLE_UPDATE: {:?}", err);
+                        ParsePayloadError::Malformed
+                    })?;
+                    
+                    GatewayMessage::Event(Event::GuildRoleUpdate(data))
+                }
+                Some("GUILD_ROLE_DELETE") => {
+                    let data: discord::DeletedRole = from_value(payload.data).map_err(|err| {
+                        eprintln!("parsing event failed for op 0 GUILD_ROLE_DELETE: {:?}", err);
+                        ParsePayloadError::Malformed
+                    })?;
+                    
+                    GatewayMessage::Event(Event::GuildRoleDelete(data))
+                }
+                Some("CHANNEL_CREATE") => {
+                    let data: discord::Channel = from_value(payload.data).map_err(|err| {
+                        eprintln!("parsing event failed for op 0 CHANNEL_CREATE: {:?}", err);
+                        ParsePayloadError::Malformed
+                    })?;
+                    
+                    GatewayMessage::Event(Event::ChannelCreate(data))
+                }
+                Some("CHANNEL_UPDATE") => {
+                    let data: discord::Channel = from_value(payload.data).map_err(|err| {
+                        eprintln!("parsing event failed for op 0 CHANNEL_UPDATE: {:?}", err);
+                        ParsePayloadError::Malformed
+                    })?;
+                    
+                    GatewayMessage::Event(Event::ChannelUpdate(data))
+                }
+                Some("CHANNEL_DELETE") => {
+                    let data: discord::Channel = from_value(payload.data).map_err(|err| {
+                        eprintln!("parsing event failed for op 0 CHANNEL_DELETE: {:?}", err);
+                        ParsePayloadError::Malformed
+                    })?;
+                    
+                    GatewayMessage::Event(Event::ChannelDelete(data))
+                }
                 Some("READY") => {
                     let ready: Ready = from_value(payload.data).map_err(|err| {
                         eprintln!("parsing event failed for op 0 READY: {:?}", err);
                         ParsePayloadError::Malformed
                     })?;
                     GatewayMessage::Event(Event::Ready(ready))
+                }
+                Some("RESUMED") => {
+                    GatewayMessage::Event(Event::Resumed)
                 }
                 Some("VOICE_STATE_UPDATE") => {
                     // {
