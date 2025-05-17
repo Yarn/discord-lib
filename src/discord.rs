@@ -70,6 +70,15 @@ impl<'de> Deserialize<'de> for Snowflake {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
+#[serde(untagged)]
+enum Nonce {
+    String(String),
+    Int(i64),
+    LargerInt(u64),
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct User {
     pub id: Snowflake,
@@ -121,7 +130,7 @@ pub struct Message {
     attachments: Vec<No>,
     embeds: Vec<No>,
     reactions: Option<Vec<No>>,
-    nonce: Option<Snowflake>,
+    nonce: Option<Nonce>,
     pinned: bool,
     webhook_id: Option<Snowflake>,
     #[serde(rename="type")]
@@ -142,7 +151,7 @@ pub struct Guild {
     pub channels: Vec<Channel>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[allow(dead_code)]
 pub enum OverwriteType {
     Role,
@@ -161,7 +170,7 @@ fn _de_overwrite_type<'de, D>(deserializer: D) -> Result<OverwriteType, D::Error
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[allow(dead_code)]
 pub struct Overwrite {
     pub id: Snowflake,

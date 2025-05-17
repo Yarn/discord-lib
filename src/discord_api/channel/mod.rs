@@ -42,7 +42,7 @@ pub struct Channel {
     r#type: ChannelType,
     pub guild_id: Option<Snowflake>,
     position: Option<isize>,
-    permission_overwrites: Option<IgnoredAny>,
+    pub permission_overwrites: Option<Vec<crate::discord::Overwrite>>,
     name: Option<String>,
     #[serde(default, deserialize_with = "double_option")]
     topic: Option<Option<String>>,
