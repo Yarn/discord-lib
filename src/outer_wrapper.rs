@@ -16,37 +16,47 @@ use crate::gateway::Event as E;
 #[derive(Debug)]
 pub struct Discord {
     client: TheClient,
-    gateway: Gateway,
+    gateway: Option<Gateway>,
     base_url: String,
     token: String,
     session_id: Option<String>,
 }
 
 impl Discord {
-    pub fn connect(base_url: String, token: String) -> impl Future<Output=Result<Self, ()>> {
-        async move {
-            let http_client = crate::send_message::get_client().unwrap();
-            
-            let gateway: Gateway = GatewayBuilder::new().base_url(base_url.clone()).connect(token.clone(), &http_client).await.unwrap();
-            
-            Ok(Self {
-                client: http_client,
-                gateway: gateway,
-                base_url: base_url,
-                token: token,
-                session_id: None,
-            })
+    pub fn new(base_url: String, token: String) -> Self {
+        let http_client = crate::send_message::get_client().unwrap();
+        
+        Self {
+            client: http_client,
+            gateway: None,
+            base_url: base_url,
+            token: token,
+            session_id: None,
         }
+    }
+    
+    pub async fn connect(&mut self) -> Result<(), GatewayError> {
+        
+        let gateway: Gateway = GatewayBuilder::new()
+            .base_url(self.base_url.clone())
+            .connect(self.token.clone(), &self.client)
+            .await?;
+        self.gateway = Some(gateway);
+        
+        Ok(())
     }
     
     pub fn send<'a>(&'a self, to: Snowflake, msg: &'a NewMessage) -> impl Future<Output=Result<(), send_message::Error>> + 'a {
         send_message::send(to, msg, &self.base_url, &self.token, &self.client)
     }
     
-    pub async fn send_gateway_raw(&mut self, msg: &str) -> Result<(), ()> {
-        self.gateway.ws.send(msg).await.unwrap();
+    pub async fn send_gateway_raw(&mut self, msg: &str) -> Result<(), GatewayError> {
+        let gateway = self.gateway.as_mut().unwrap();
         
-        // Err(())
+        gateway.ws.send(msg).await.map_err(|err| {
+            GatewayError::WebSocket(err)
+        })?;
+        
         Ok(())
     }
     
@@ -61,36 +71,22 @@ impl Discord {
     
     pub fn recv<'a>(&'a mut self) -> impl Future<Output=Result<GatewayMessage, GatewayError>> + 'a {
         async move {
+            let gateway = self.gateway.as_mut().unwrap();
             loop {
-                let msg = self.gateway.recv().await;
+                let msg = gateway.recv().await;
                 
                 match msg {
                     Ok(GM::Event(E::Ready(ref ready))) => {
                         self.session_id = Some(ready.session_id.clone());
                     }
                     Ok(GM::InvalidSession) => {
-                        // panic!("op 9 (Invalid Session) not supported");
                         self.session_id = None;
-                        self.gateway.seq_num = None;
+                        if let Some(ref mut gateway) = self.gateway {
+                            gateway.seq_num = None;
+                        }
                         break Err(GatewayError::InvalidSession)
                     }
                     Ok(GM::Reconnect) => {
-                        // match (self.session_id, self.gateway.seq_num) {
-                        //     (Some(ref session_id), Some(seq) => {
-                        //         // let seq: u64 = self.gateway.seq_num.expect("Resume before seq number");
-                                
-                        //         let gateway: Gateway = GatewayBuilder::new()
-                        //             .base_url(self.base_url.clone())
-                        //             .resume(session_id.clone(), seq)
-                        //             .connect(self.token.clone(), &self.client).await?;
-                                
-                        //         self.gateway = gateway
-                        //     }
-                        //     _ => {
-                        //         // panic!("received reconnect (op 7) before Ready")
-                        //         return GatewayError::Misc("".into())
-                        //     }
-                        // }
                         let is_reconnect = self.reconnect().await?;
                         if is_reconnect {
                             eprintln!("Reconnect recieved before session_id or sequence number")
@@ -104,61 +100,35 @@ impl Discord {
         }
     }
     
-    pub async fn reconnect_with(base_url: String, token: String, session_id: String, seq: u64) -> Result<Self, GatewayError> {
-        let http_client = crate::send_message::get_client().unwrap();
-        
+    pub async fn reconnect_with(&mut self, session_id: String, seq: u64) -> Result<(), GatewayError> {
         let gateway: Gateway = GatewayBuilder::new()
-            .base_url(base_url.clone())
+            .base_url(self.base_url.clone())
             .resume(session_id.clone(), seq)
-            .connect(token.clone(), &http_client).await?;
-        // gateway.seq_num = Some(seq);
+            .connect(self.token.clone(), &self.client).await?;
         
-        Ok(Self {
-            client: http_client,
-            gateway: gateway,
-            base_url: base_url,
-            token: token,
-            session_id: Some(session_id),
-        })
+        self.gateway = Some(gateway);
+        
+        Ok(())
     }
     
     pub fn reconnect<'a>(&'a mut self) -> impl Future<Output=Result<bool, GatewayError>> + 'a {
         async move {
-            let mut is_reconnect = false;
-            
-            let mut builder = GatewayBuilder::new()
-                .base_url(self.base_url.clone());
-            
-            if let (Some(ref session_id), Some(seq)) = (&self.session_id, self.gateway.seq_num) {
-                is_reconnect = true;
-                
-                // let seq: u64 = .expect("Resume before seq number");
-                
-                builder = builder.resume(session_id.clone(), seq);
+            if let (Some(ref session_id), Some(seq)) = (&self.session_id, self.gateway.as_ref().and_then(|g| g.seq_num)) {
+                self.reconnect_with(session_id.clone(), seq).await?;
+                Ok(true)
+            } else {
+                self.connect().await?;
+                Ok(false)
             }
-            
-            let gateway: Gateway = builder.connect(self.token.clone(), &self.client).await?;
-            
-            self.gateway = gateway;
-            
-            // match self.session_id {
-            //     Some(ref session_id) => {
-                    
-            //     }
-            //     None => {
-            //         // panic!("received reconnect (op 7) before Ready")
-            //     }
-            // }
-            Ok(is_reconnect)
         }
     }
     
     pub fn seq(&self) -> Option<u64> {
-        self.gateway.seq_num
+        self.gateway.as_ref().and_then(|g| g.seq_num)
     }
     
     pub fn did_resume(&self) -> Option<bool> {
-        self.gateway.did_resume
+        self.gateway.as_ref().and_then(|g| g.did_resume)
     }
 }
 
